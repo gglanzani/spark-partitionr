@@ -56,7 +56,9 @@ def create_schema(df, database, table, partition_col='dt', format_output='parque
     :param format_output str: What format should the table use.
     """
     init_string = "CREATE TABLE IF NOT EXISTS %s.%s (\n" % (database, table)
-    mid_string = ",\n".join([sanitize(key) + " " + value for key, value in df.dtypes])
+    mid_string = ",\n".join([sanitize(key) + " " + value
+                             for key, value in df.dtypes
+                             if value != partition_col])
     end_string = "\n) PARTITIONED BY (%s STRING) %s" % (partition_col,
                                                         storage[format_output])
     return init_string + mid_string + end_string
@@ -114,8 +116,7 @@ def load_data(spark, path, **kwargs):
             readr = getattr(readr, key)(value)
         except AttributeError:
             pass
-    df = (readr.format(format_input)
-               .load(path))
+    df = (readr.load(path))
     return df
 
 
@@ -160,15 +161,19 @@ def get_output_path(spark, database, table):
     return location
 
 
-def write_data(df, format_output, mode_output, partition_col, output_path):
+def write_data(df, format_output, mode_output, partition_col, output_path, **kwargs):
     """
     pass
     """
-    (df.write
-       .format(format_output)
-       .mode(mode_output)
-       .partitionBy(partition_col)
-       .save(output_path))
+    if kwargs.get('repartition', False):
+        result = df.repartition(partition_col)
+    else:
+        result = df
+    (result.write
+           .format(format_output)
+           .mode(mode_output)
+           .partitionBy(partition_col)
+           .save(output_path))
 
 
 def main(input_path, format_output, database, table, mode_output='append',
@@ -195,6 +200,9 @@ def main(input_path, format_output, database, table, mode_output='append',
         The input schema
       * *master* (``str``) --
         Specify which `master` should be used
+      * *repartition* (``bool``) --
+        Whether to partition the data by partition column beforer writing. This reduces the number
+        of small files written by Spark
       * *key* (``str``)
         In principle all `key` if accepted by `spark.read.options`, by `findspark.init()`, or by
         `SparkSession.builder.config`
@@ -219,4 +227,4 @@ def main(input_path, format_output, database, table, mode_output='append',
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     create_partitions(spark, partitioned_df, database, table, partition_col)
     output_path = get_output_path(spark, database, table)
-    write_data(partitioned_df, format_output, mode_output, partition_col, output_path)
+    write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
