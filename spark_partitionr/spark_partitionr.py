@@ -203,6 +203,9 @@ def main(input_path, format_output, database, table, mode_output='append',
       * *repartition* (``bool``) --
         Whether to partition the data by partition column beforer writing. This reduces the number
         of small files written by Spark
+      * *to_unnest* (``list``) --
+        Which Struct's, if any, should be unnested as columns. This is helpful for the cases when
+        a field is too deeply nested that it exceeds the maximum lenght supported by Hive
       * *key* (``str``)
         In principle all `key` if accepted by `spark.read.options`, by `findspark.init()`, or by
         `SparkSession.builder.config`
@@ -217,11 +220,15 @@ def main(input_path, format_output, database, table, mode_output='append',
     >>> main('hdfs:///data/some_data', 'parquet', 'my_db', 'my_tbl', mode_output='overwrite',
              partition_col='dt', partition_with=partition_function('a_col'),
              master='yarn', format='com.databricks.spark.csv',
-             header=True)
+             header=True, to_unnest=['deeply_nested_column'])
     """
     if not spark:
         spark = create_spark_session(database, table, **kwargs)
     df = load_data(spark, input_path, **kwargs)
+    to_unnest = kwargs.get('to_unnest')
+    if to_unnest:
+        for el in to_unnest:
+            df = df.select('%s.*' % el, *df.columns).drop(el)
     schema = create_schema(df, database, table, partition_col, format_output)
     spark.sql(schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
