@@ -86,7 +86,7 @@ def create_partitions(spark, df, database, table, partition_col='dt'):
                 "dbtable": ".".join([database, table]),
                 "partition_value": partition_value}
         spark.sql("""ALTER TABLE %(dbtable)s ADD IF NOT EXISTS
-                     PARTITION(%(partition)s=%(partition_value)s)""" % conf)
+                     PARTITION(%(partition)s='%(partition_value)s')""" % conf)
 
 
 def load_data(spark, path, **kwargs):
