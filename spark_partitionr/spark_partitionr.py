@@ -176,10 +176,11 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
            .save(output_path))
 
 
-def main(input_path, format_output, database, table, mode_output='append', partition_col='dt',
+def main(input, format_output, database, table, mode_output='append', partition_col='dt',
          partition_datatype='STRING', partition_with=None, spark=None, **kwargs):
     r"""
-    :param input_path str: The location for the data to load. Passed to `.load` in Spark
+    :param input: Either the location location for the data to load, which will be passed to `.load` in Spark.
+                    Or the dataframe that contains the data.
     :param format_output str: One of `parquet` and `com.databricks.spark.csv` at the moment
     :param database str: The Hive database where to write the output
     :param table str: The Hive table where to write the output
@@ -226,7 +227,12 @@ def main(input_path, format_output, database, table, mode_output='append', parti
     """
     if not spark:
         spark = create_spark_session(database, table, **kwargs)
-    df = load_data(spark, input_path, **kwargs)
+
+    if isinstance(input, str):
+        df = load_data(spark, input, **kwargs)
+    else:
+        df = input
+
     to_unnest = kwargs.get('to_unnest')
     if to_unnest:
         for el in to_unnest:
