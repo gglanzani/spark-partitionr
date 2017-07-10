@@ -42,7 +42,7 @@ def sanitize(key):
         return key
 
 
-def create_schema(df, database, table, partition_col='dt', format_output='parquet'):
+def create_schema(df, database, table, partition_col='dt', partition_datatype='STRING', format_output='parquet'):
     """
     Create the schema (as a SQL string) for the dataframe in question
 
@@ -59,7 +59,7 @@ def create_schema(df, database, table, partition_col='dt', format_output='parque
     mid_string = ",\n".join([sanitize(key) + " " + value
                              for key, value in df.dtypes
                              if value != partition_col])
-    end_string = "\n) PARTITIONED BY (%s STRING) %s" % (partition_col,
+    end_string = "\n) PARTITIONED BY (%s %s) %s" % (partition_col, partition_datatype,
                                                         storage[format_output])
     return init_string + mid_string + end_string
 
@@ -176,8 +176,8 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
            .save(output_path))
 
 
-def main(input_path, format_output, database, table, mode_output='append',
-         partition_col='dt', partition_with=None, spark=None, **kwargs):
+def main(input_path, format_output, database, table, mode_output='append', partition_col='dt',
+         partition_datatype='STRING', partition_with=None, spark=None, **kwargs):
     r"""
     :param input_path str: The location for the data to load. Passed to `.load` in Spark
     :param format_output str: One of `parquet` and `com.databricks.spark.csv` at the moment
@@ -185,8 +185,10 @@ def main(input_path, format_output, database, table, mode_output='append',
     :param table str: The Hive table where to write the output
     :param mode_output str: Anything accepted by Spark's `.write.mode()`.
     :param partition_col str: The partition column
-    :param partition_function: A Spark Column expression for the `partition_col`. If not present,
-                               `partition_col` should already be in the input data
+    :param partition_datatype str: The format of the partition key, e.g. STRING, INT, DATE etc.
+    :param partition_with: A Spark Column expression for the `partition_col`. If not present,
+                          `partition_col` should already be in the input data
+    :param spark: An existing Spark session, if not supplied, it will create a new session
 
     :Keyword Arguments:
       * *spark_config* (``dict``) --
@@ -229,7 +231,7 @@ def main(input_path, format_output, database, table, mode_output='append',
     if to_unnest:
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
-    schema = create_schema(df, database, table, partition_col, format_output)
+    schema = create_schema(df, database, table, partition_col, partition_datatype, format_output)
     spark.sql(schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     create_partitions(spark, partitioned_df, database, table, partition_col)
