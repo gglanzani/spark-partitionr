@@ -44,7 +44,7 @@ def sanitize(key):
         return key
 
 
-def create_schema(df, database, table, partition_col='dt', partition_datatype='STRING', format_output='parquet'):
+def create_schema(df, database, table, partition_col='dt', format_output='parquet'):
     """
     Create the schema (as a SQL string) for the dataframe in question
 
@@ -61,7 +61,7 @@ def create_schema(df, database, table, partition_col='dt', partition_datatype='S
     mid_string = ",\n".join([sanitize(key) + " " + value
                              for key, value in df.dtypes
                              if value != partition_col])
-    end_string = "\n) PARTITIONED BY (%s %s) %s" % (partition_col, partition_datatype,
+    end_string = "\n) PARTITIONED BY (%s STRING) %s" % (partition_col,
                                                         storage[format_output])
     return init_string + mid_string + end_string
 
@@ -181,8 +181,9 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
 def sanitize_table_name(table_name):
     return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
 
+
 def main(input, format_output, database, table, mode_output='append', partition_col='dt',
-         partition_datatype='STRING', partition_with=None, spark=None, **kwargs):
+         partition_with=None, spark=None, **kwargs):
     r"""
     :param input: Either the location location for the data to load, which will be passed to `.load` in Spark.
                     Or the dataframe that contains the data.
@@ -191,10 +192,8 @@ def main(input, format_output, database, table, mode_output='append', partition_
     :param table str: The Hive table where to write the output
     :param mode_output str: Anything accepted by Spark's `.write.mode()`.
     :param partition_col str: The partition column
-    :param partition_datatype str: The format of the partition key, e.g. STRING, INT, DATE etc.
-    :param partition_with: A Spark Column expression for the `partition_col`. If not present,
-                          `partition_col` should already be in the input data
-    :param spark: An existing Spark session, if not supplied, it will create a new session
+    :param partition_function: A Spark Column expression for the `partition_col`. If not present,
+                               `partition_col` should already be in the input data
 
     :Keyword Arguments:
       * *spark_config* (``dict``) --
@@ -243,7 +242,7 @@ def main(input, format_output, database, table, mode_output='append', partition_
     if to_unnest:
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
-    schema = create_schema(df, database, sanitized_table, partition_col, partition_datatype, format_output)
+    schema = create_schema(df, database, sanitized_table, partition_col, format_output)
     spark.sql(schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     create_partitions(spark, partitioned_df, database, sanitized_table, partition_col)
