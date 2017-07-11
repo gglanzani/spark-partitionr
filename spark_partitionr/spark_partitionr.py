@@ -2,6 +2,8 @@
 Main module to load the data
 """
 # pylint: disable=C0330
+import re
+INVALID_HIVE_CHARACTERS = re.compile("[^A-Za-z0-9_]")
 
 storage = {'parquet': 'STORED AS PARQUET',
            'com.databricks.spark.csv': ("ROW FORMAT SERDE"
@@ -17,7 +19,7 @@ def add_partition_column(df, partition_col='dt', partition_with=None):
 
     :param df: A dataframe to add a partition columnn
     :type df: A Spark dataframe
-    :param partition_col str: On which column should it be partitioned
+    :param str partition_col: On which column should it be partitioned
     :param partition_with: A Spark Column expression for the `partition_col`. If not present,
                           `partition_col` should already be in the input data
     :returns: A Spark dataframe with the partition column added
@@ -50,10 +52,10 @@ def create_schema(df, database, table, partition_col='dt', format_output='parque
 
     :param df: The dataframe that has been written partitioned on "disk"
     :type df: A Spark dataframe
-    :param database str: To which database does the table belong
-    :param table str: On which tables has this been written to
-    :param partition_col str: On which column should it be partitioned
-    :param format_output str: What format should the table use.
+    :param str database: To which database does the table belong
+    :param str table: On which tables has this been written to
+    :param str partition_col: On which column should it be partitioned
+    :param str format_output: What format should the table use.
     """
     init_string = "CREATE TABLE IF NOT EXISTS %s.%s (\n" % (database, table)
     mid_string = ",\n".join([sanitize(key) + " " + value
@@ -75,9 +77,9 @@ def create_partitions(spark, df, database, table, partition_col='dt'):
     :type spark: :class:`pyspark.sql.SparkSession`
     :param df: The dataframe that has been written partitioned on "disk"
     :type df: A Spark dataframe
-    :param database str: To which database does the table belong
-    :param table str: On which tables has this been written to
-    :param partition_col str: On which column should it be partitioned
+    :param str database: To which database does the table belong
+    :param str table: On which tables has this been written to
+    :param str partition_col: On which column should it be partitioned
     """
     unique_partitions = df.select(partition_col).distinct()
     for row in unique_partitions.collect():
@@ -94,7 +96,8 @@ def load_data(spark, path, **kwargs):
     Load the data in `path` as a Spark DataFrame
 
     :param spark: A SparkSession object
-    :param path str: The path where the data is
+    :type spark: pyspark.sql.SparkSession
+    :param str path: The path where the data is
     :return: A Spark DataFrame
 
     :Keywords Argument:
@@ -124,8 +127,8 @@ def create_spark_session(database='not provided', table='not provided', **kwargs
     r"""
     Returns a Spark session.
 
-    :param database str: The database name. Only used to name the SparkSession
-    :param table str: The table name. Only used to name the SparkSession
+    :param str database: The database name. Only used to name the SparkSession
+    :param str table: The table name. Only used to name the SparkSession
 
     :Keyword Arguments:
 
@@ -175,16 +178,18 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
            .partitionBy(partition_col)
            .save(output_path))
 
+def sanitize_table_name(table_name):
+    return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
 
 def main(input_path, format_output, database, table, mode_output='append',
          partition_col='dt', partition_with=None, spark=None, **kwargs):
     r"""
-    :param input_path str: The location for the data to load. Passed to `.load` in Spark
-    :param format_output str: One of `parquet` and `com.databricks.spark.csv` at the moment
-    :param database str: The Hive database where to write the output
-    :param table str: The Hive table where to write the output
-    :param mode_output str: Anything accepted by Spark's `.write.mode()`.
-    :param partition_col str: The partition column
+    :param str input_path: The location for the data to load. Passed to `.load` in Spark
+    :param str format_output: One of `parquet` and `com.databricks.spark.csv` at the moment
+    :param str database: The Hive database where to write the output
+    :param str table: The Hive table where to write the output
+    :param str mode_output: Anything accepted by Spark's `.write.mode()`.
+    :param str partition_col: The partition column
     :param partition_function: A Spark Column expression for the `partition_col`. If not present,
                                `partition_col` should already be in the input data
 
@@ -222,16 +227,17 @@ def main(input_path, format_output, database, table, mode_output='append',
              master='yarn', format='com.databricks.spark.csv',
              header=True, to_unnest=['deeply_nested_column'])
     """
+    sanitized_table = sanitize_table_name(table_name)
     if not spark:
-        spark = create_spark_session(database, table, **kwargs)
+        spark = create_spark_session(database, sanitized_table, **kwargs)
     df = load_data(spark, input_path, **kwargs)
     to_unnest = kwargs.get('to_unnest')
     if to_unnest:
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
-    schema = create_schema(df, database, table, partition_col, format_output)
+    schema = create_schema(df, database, sanitized_table, partition_col, format_output)
     spark.sql(schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
-    create_partitions(spark, partitioned_df, database, table, partition_col)
-    output_path = get_output_path(spark, database, table)
+    create_partitions(spark, partitioned_df, database, sanitized_table, partition_col)
+    output_path = get_output_path(spark, database, sanitized_table)
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
