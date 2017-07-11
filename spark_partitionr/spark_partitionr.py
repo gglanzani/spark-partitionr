@@ -182,7 +182,7 @@ def sanitize_table_name(table_name):
     return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
 
 
-def main(input, format_output, database, table, mode_output='append', partition_col='dt',
+def main(input, format_output, database, table_name, mode_output='append', partition_col='dt',
          partition_with=None, spark=None, **kwargs):
     r"""
     :param input: Either the location location for the data to load, which will be passed to `.load` in Spark.
