@@ -44,7 +44,7 @@ def sanitize(key):
         return key
 
 
-def create_schema(df, database, table, partition_col='dt', format_output='parquet'):
+def create_schema(df, database, table, partition_col='dt', format_output='parquet', output_path=None):
     """
     Create the schema (as a SQL string) for the dataframe in question
 
@@ -52,18 +52,30 @@ def create_schema(df, database, table, partition_col='dt', format_output='parque
 
     :param df: The dataframe that has been written partitioned on "disk"
     :type df: A Spark dataframe
-    :param str database: To which database does the table belong
-    :param str table: On which tables has this been written to
-    :param str partition_col: On which column should it be partitioned
-    :param str format_output: What format should the table use.
+    :param database str: To which database does the table belong
+    :param table str: On which tables has this been written to
+    :param partition_col str: On which column should it be partitioned
+    :param format_output str: What format should the table use.
+    :param mode_output str: Anything accepted by Spark's `.write.mode()`.
     """
-    init_string = "CREATE TABLE IF NOT EXISTS %s.%s (\n" % (database, table)
-    mid_string = ",\n".join([sanitize(key) + " " + value
-                             for key, value in df.dtypes
-                             if value != partition_col])
-    end_string = "\n) PARTITIONED BY (%s STRING) %s" % (partition_col,
-                                                        storage[format_output])
-    return init_string + mid_string + end_string
+    if format_output and format_output not in storage:
+        raise KeyError("Unrecognized format_output %s. Available values are %s" % (format_output,
+                                                                                   list(storage.keys())))
+    init_string = "CREATE TABLE IF NOT EXISTS %s.%s " % (database, table)
+    fields_string = "(\n" + ",\n".join([sanitize(key) + " " + value
+                                for key, value in df.dtypes
+                                if value != partition_col]) + "\n) "
+    if partition_col:
+        partition_string = "PARTITIONED BY (%s STRING) " % partition_col
+    else:
+        partition_string = ""
+
+    format_string = "\n %s" % storage.get(format_output, "")
+    if output_path:
+        location = "\n LOCATION '%s'" % output_path
+    else:
+        location = ""
+    return init_string + fields_string + partition_string + format_string + location
 
 
 def create_partitions(spark, df, database, table, partition_col='dt'):
@@ -182,7 +194,7 @@ def sanitize_table_name(table_name):
     return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
 
 
-def main(input, format_output, database, table_name, mode_output='append', partition_col='dt',
+def main(input, format_output, database, table_name, output_path=None, mode_output='append', partition_col='dt',
          partition_with=None, spark=None, **kwargs):
     r"""
     :param input: Either the location location for the data to load, which will be passed to `.load` in Spark.
@@ -190,6 +202,7 @@ def main(input, format_output, database, table_name, mode_output='append', parti
     :param format_output str: One of `parquet` and `com.databricks.spark.csv` at the moment
     :param database str: The Hive database where to write the output
     :param table str: The Hive table where to write the output
+    :param output_path str: The table location
     :param mode_output str: Anything accepted by Spark's `.write.mode()`.
     :param partition_col str: The partition column
     :param partition_function: A Spark Column expression for the `partition_col`. If not present,
@@ -212,7 +225,7 @@ def main(input, format_output, database, table_name, mode_output='append', parti
         of small files written by Spark
       * *to_unnest* (``list``) --
         Which Struct's, if any, should be unnested as columns. This is helpful for the cases when
-        a field is too deeply nested that it exceeds the maximum lenght supported by Hive
+        a field is too deeply nested that it exceeds the maximum length supported by Hive
       * *key* (``str``)
         In principle all `key` if accepted by `spark.read.options`, by `findspark.init()`, or by
         `SparkSession.builder.config`
@@ -225,9 +238,9 @@ def main(input, format_output, database, table_name, mode_output='append', parti
 
     >>> from spark_partitionr import main
     >>> main('hdfs:///data/some_data', 'parquet', 'my_db', 'my_tbl', mode_output='overwrite',
-             partition_col='dt', partition_with=partition_function('a_col'),
-             master='yarn', format='com.databricks.spark.csv',
-             header=True, to_unnest=['deeply_nested_column'])
+    ...      partition_col='dt', partition_with=partition_function('a_col'),
+    ...      master='yarn', format='com.databricks.spark.csv',
+    ...      header=True, to_unnest=['deeply_nested_column'])
     """
     sanitized_table = sanitize_table_name(table_name)
     if not spark:
@@ -242,9 +255,10 @@ def main(input, format_output, database, table_name, mode_output='append', parti
     if to_unnest:
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
-    schema = create_schema(df, database, sanitized_table, partition_col, format_output)
+    schema = create_schema(df, database, sanitized_table, partition_col, format_output, output_path)
     spark.sql(schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     create_partitions(spark, partitioned_df, database, sanitized_table, partition_col)
-    output_path = get_output_path(spark, database, sanitized_table)
+    if not output_path:
+        output_path = get_output_path(spark, database, sanitized_table)
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
