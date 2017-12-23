@@ -64,7 +64,7 @@ def create_schema(df, database, table, partition_col='dt', format_output='parque
     init_string = "CREATE TABLE IF NOT EXISTS %s.%s " % (database, table)
     fields_string = "(\n" + ",\n".join([sanitize(key) + " " + value
                                 for key, value in df.dtypes
-                                if value != partition_col]) + "\n) "
+                                if key != partition_col]) + "\n) "
     if partition_col:
         partition_string = "PARTITIONED BY (%s STRING) " % partition_col
     else:
