@@ -3,6 +3,15 @@ Main module to load the data
 """
 # pylint: disable=C0330
 import re
+from typing import Any, Callable, Union
+
+try:
+    from pyspark.sql import SparkSession
+    from pyspark.sql import DataFrame
+    from pyspark.sql.column import Column
+except ImportError:
+    pass  # the create_spark_session will take care of it
+
 INVALID_HIVE_CHARACTERS = re.compile("[^A-Za-z0-9_]")
 
 storage = {'parquet': 'STORED AS PARQUET',
@@ -11,15 +20,15 @@ storage = {'parquet': 'STORED AS PARQUET',
                                         "STORED AS TEXTFILE")}
 
 
-def add_partition_column(df, partition_col='dt', partition_with=None):
+def add_partition_column(df: DataFrame, partition_col: str='dt',
+                         partition_with: Callable[[Any], Column]=None) -> DataFrame:
     """
     Return a new dataframe with a column added, to be used as partition column
 
     If `partition_col` already exists and `partition_with` is `None`, the dataframe is unmodified
 
     :param df: A dataframe to add a partition columnn
-    :type df: A Spark dataframe
-    :param str partition_col: On which column should it be partitioned
+    :param partition_col: On which column should it be partitioned
     :param partition_with: A Spark Column expression for the `partition_col`. If not present,
                           `partition_col` should already be in the input data
     :returns: A Spark dataframe with the partition column added
@@ -34,7 +43,7 @@ def add_partition_column(df, partition_col='dt', partition_with=None):
     return df.withColumn(partition_col, partition_with)
 
 
-def sanitize(key):
+def sanitize(key: str) -> str:
     """
     Sanitize column names (they cannot begin with '_') by surrounding them with backticks (`)
     """
@@ -44,19 +53,20 @@ def sanitize(key):
         return key
 
 
-def create_schema(df, database, table, partition_col='dt', format_output='parquet', output_path=None):
+def create_schema(df: DataFrame, database: str, table: str,
+                  partition_col: str='dt', format_output: str='parquet', output_path: str=None) -> str:
     """
     Create the schema (as a SQL string) for the dataframe in question
 
     The `format_output` is needed as this has to be specified in the create statement
 
     :param df: The dataframe that has been written partitioned on "disk"
-    :type df: A Spark dataframe
     :param database str: To which database does the table belong
-    :param table str: On which tables has this been written to
-    :param partition_col str: On which column should it be partitioned
-    :param format_output str: What format should the table use.
-    :param mode_output str: Anything accepted by Spark's `.write.mode()`.
+    :param table: On which tables has this been written to
+    :param partition_col: On which column should it be partitioned
+    :param format_output: What format should the table use.
+    :param mode_output: Anything accepted by Spark's `.write.mode()`.
+    :returns: A string containing the schema.
     """
     if format_output and format_output not in storage:
         raise KeyError("Unrecognized format_output %s. Available values are %s" % (format_output,
@@ -78,7 +88,7 @@ def create_schema(df, database, table, partition_col='dt', format_output='parque
     return init_string + fields_string + partition_string + format_string + location
 
 
-def create_partitions(spark, df, database, table, partition_col='dt'):
+def create_partitions(spark: SparkSession, df, database, table, partition_col='dt') -> None:
     """
     Create the partitions on the metastore (not on "disk").
 
@@ -86,12 +96,10 @@ def create_partitions(spark, df, database, table, partition_col='dt'):
     partitions exists.
 
     :param spark: A SparkSession
-    :type spark: :class:`pyspark.sql.SparkSession`
     :param df: The dataframe that has been written partitioned on "disk"
-    :type df: A Spark dataframe
-    :param str database: To which database does the table belong
-    :param str table: On which tables has this been written to
-    :param str partition_col: On which column should it be partitioned
+    :param database: To which database does the table belong
+    :param table: On which tables has this been written to
+    :param partition_col: On which column should it be partitioned
     """
     unique_partitions = df.select(partition_col).distinct()
     for row in unique_partitions.collect():
@@ -103,13 +111,12 @@ def create_partitions(spark, df, database, table, partition_col='dt'):
                      PARTITION(%(partition)s='%(partition_value)s')""" % conf)
 
 
-def load_data(spark, path, **kwargs):
+def load_data(spark: SparkSession, path: str, **kwargs) -> DataFrame:
     r"""
     Load the data in `path` as a Spark DataFrame
 
     :param spark: A SparkSession object
-    :type spark: pyspark.sql.SparkSession
-    :param str path: The path where the data is
+    :param path: The path where the data is
     :return: A Spark DataFrame
 
     :Keywords Argument:
@@ -135,12 +142,12 @@ def load_data(spark, path, **kwargs):
     return df
 
 
-def create_spark_session(database='not provided', table='not provided', **kwargs):
+def create_spark_session(database: str='not provided', table: str='not provided', **kwargs) -> SparkSession:
     r"""
     Returns a Spark session.
 
-    :param str database: The database name. Only used to name the SparkSession
-    :param str table: The table name. Only used to name the SparkSession
+    :param database: The database name. Only used to name the SparkSession
+    :param table: The table name. Only used to name the SparkSession
 
     :Keyword Arguments:
 
@@ -165,7 +172,7 @@ def create_spark_session(database='not provided', table='not provided', **kwargs
     return spark
 
 
-def get_output_path(spark, database, table):
+def get_output_path(spark: SparkSession, database: str, table: str) -> str:
     """
     Return the path where data should be written using database and table as argument
     """
@@ -176,9 +183,10 @@ def get_output_path(spark, database, table):
     return location
 
 
-def write_data(df, format_output, mode_output, partition_col, output_path, **kwargs):
+def write_data(df: DataFrame, format_output: str, mode_output: str,
+               partition_col: str, output_path: str, **kwargs) -> None:
     """
-    pass
+    Write a df in the desired location
     """
     if kwargs.get('repartition', False):
         result = df.repartition(partition_col)
@@ -190,12 +198,19 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
            .partitionBy(partition_col)
            .save(output_path))
 
-def sanitize_table_name(table_name):
+
+def sanitize_table_name(table_name: str) -> str:
+    """
+    Replace invalid characters with underscores
+
+    Hive does not accept all characters in table names
+    """
     return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
 
 
-def main(input, format_output, database, table_name, output_path=None, mode_output='append', partition_col='dt',
-         partition_with=None, spark=None, **kwargs):
+def main(input: Union[str, DataFrame], format_output: str, database: str, table_name: str,
+         output_path: str=None, mode_output: str='append', partition_col: str='dt',
+         partition_with: Callable[[Any], Column]=None, spark: SparkSession=None, **kwargs) -> None:
     r"""
     :param input: Either the location location for the data to load, which will be passed to `.load` in Spark.
                     Or the dataframe that contains the data.
