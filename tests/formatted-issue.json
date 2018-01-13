@@ -1,0 +1,151 @@
+[
+    {
+        "author": {
+            "active": true,
+            "avatarUrls": {
+                "16x16": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=kryzthov&avatarId=16188",
+                "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=kryzthov&avatarId=16188"
+            },
+            "displayName": "Christophe Taton",
+            "emailAddress": "taton@apache.org",
+            "name": "kryzthov",
+            "self": "https://issues.apache.org/jira/rest/api/2/user?username=kryzthov"
+        },
+        "created": "2013-04-17T05:24:30.698+0000",
+        "id": "13701347",
+        "items": [
+            {
+                "field": "status",
+                "fieldtype": "jira",
+                "from": "1",
+                "fromString": "Open",
+                "to": "10002",
+                "toString": "Patch Available"
+            },
+            {
+                "field": "Fix Version",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": null,
+                "to": "12324096",
+                "toString": "1.7.5"
+            }
+        ]
+    },
+    {
+        "author": {
+            "active": true,
+            "avatarUrls": {
+                "16x16": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=kryzthov&avatarId=16188",
+                "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=kryzthov&avatarId=16188"
+            },
+            "displayName": "Christophe Taton",
+            "emailAddress": "taton@apache.org",
+            "name": "kryzthov",
+            "self": "https://issues.apache.org/jira/rest/api/2/user?username=kryzthov"
+        },
+        "created": "2013-04-17T05:25:21.393+0000",
+        "id": "13701348",
+        "items": [
+            {
+                "field": "Attachment",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": null,
+                "to": "12579094",
+                "toString": "AVRO-1299.20130416-222225.patch"
+            }
+        ]
+    },
+    {
+        "author": {
+            "active": true,
+            "avatarUrls": {
+                "16x16": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=kryzthov&avatarId=16188",
+                "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=kryzthov&avatarId=16188"
+            },
+            "displayName": "Christophe Taton",
+            "emailAddress": "taton@apache.org",
+            "name": "kryzthov",
+            "self": "https://issues.apache.org/jira/rest/api/2/user?username=kryzthov"
+        },
+        "created": "2013-04-17T17:11:58.944+0000",
+        "id": "13701655",
+        "items": [
+            {
+                "field": "Attachment",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": null,
+                "to": "12579154",
+                "toString": "AVRO-1299.20130417-101039.patch"
+            }
+        ]
+    },
+    {
+        "author": {
+            "active": true,
+            "avatarUrls": {
+                "16x16": "https://issues.apache.org/jira/secure/useravatar?size=small&ownerId=kryzthov&avatarId=16188",
+                "48x48": "https://issues.apache.org/jira/secure/useravatar?ownerId=kryzthov&avatarId=16188"
+            },
+            "displayName": "Christophe Taton",
+            "emailAddress": "taton@apache.org",
+            "name": "kryzthov",
+            "self": "https://issues.apache.org/jira/rest/api/2/user?username=kryzthov"
+        },
+        "created": "2013-04-18T20:41:25.666+0000",
+        "id": "13702959",
+        "items": [
+            {
+                "field": "Attachment",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": null,
+                "to": "12579414",
+                "toString": "AVRO-1299.20130418-133947.patch"
+            }
+        ]
+    },
+    {
+        "author": {
+            "active": true,
+            "avatarUrls": {
+                "16x16": "https://issues.apache.org/jira/secure/useravatar?size=small&avatarId=10452",
+                "48x48": "https://issues.apache.org/jira/secure/useravatar?avatarId=10452"
+            },
+            "displayName": "Doug Cutting",
+            "emailAddress": "cutting@apache.org",
+            "name": "cutting",
+            "self": "https://issues.apache.org/jira/rest/api/2/user?username=cutting"
+        },
+        "created": "2013-04-23T17:11:53.429+0000",
+        "id": "13706005",
+        "items": [
+            {
+                "field": "status",
+                "fieldtype": "jira",
+                "from": "10002",
+                "fromString": "Patch Available",
+                "to": "5",
+                "toString": "Resolved"
+            },
+            {
+                "field": "assignee",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": null,
+                "to": "kryzthov",
+                "toString": "Christophe Taton"
+            },
+            {
+                "field": "resolution",
+                "fieldtype": "jira",
+                "from": null,
+                "fromString": null,
+                "to": "1",
+                "toString": "Fixed"
+            }
+        ]
+    }
+]
