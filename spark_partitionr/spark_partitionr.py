@@ -35,7 +35,7 @@ def add_partition_column(df: DataFrame, partition_col: str='dt',
 
     """
     if partition_with is None:
-        if partition_col not in df.columns:
+        if partition_col and partition_col not in df.columns:
             raise ValueError(("The partition_function can't be None "
                               "if partition_col is not part of the dataframe"))
         else:
@@ -65,7 +65,7 @@ def create_schema(df: DataFrame, database: str, table: str,
     :param table: On which tables has this been written to
     :param partition_col: On which column should it be partitioned
     :param format_output: What format should the table use.
-    :param mode_output: Anything accepted by Spark's `.write.mode()`.
+    :param output_path: Where the table should be written (if not in the metastore managed folder).
     :returns: A string containing the schema.
     """
     if format_output and format_output not in storage:
@@ -74,15 +74,15 @@ def create_schema(df: DataFrame, database: str, table: str,
     init_string = "CREATE TABLE IF NOT EXISTS %s.%s " % (database, table)
     fields_string = "(\n" + ",\n".join([sanitize(key) + " " + value
                                 for key, value in df.dtypes
-                                if key != partition_col]) + "\n) "
+                                if key != partition_col]) + "\n)"
     if partition_col:
-        partition_string = "PARTITIONED BY (%s STRING) " % partition_col
+        partition_string = "\nPARTITIONED BY (%s STRING)" % partition_col
     else:
         partition_string = ""
 
-    format_string = "\n %s" % storage.get(format_output, "")
+    format_string = "\n%s" % storage.get(format_output, "")
     if output_path:
-        location = "\n LOCATION '%s'" % output_path
+        location = "\nLOCATION '%s'" % output_path
     else:
         location = ""
     return init_string + fields_string + partition_string + format_string + location
