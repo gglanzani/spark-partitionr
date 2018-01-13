@@ -57,7 +57,7 @@ def create_schema(df, database, table, partition_col='dt',
     :param table str: On which tables has this been written to
     :param partition_col str: On which column should it be partitioned
     :param format_output str: What format should the table use.
-    :param mode_output str: Anything accepted by Spark's `.write.mode()`.
+    :param output_path: Where the table should be written (if not in the metastore managed folder).
     """
     if format_output and format_output not in storage:
         raise KeyError("Unrecognized format_output %s. Available values are %s" % (format_output,
@@ -69,15 +69,15 @@ def create_schema(df, database, table, partition_col='dt',
                                                              table=table))
     fields_string = "(\n" + ",\n".join([sanitize(key) + " " + value
                                 for key, value in df.dtypes
-                                if key != partition_col]) + "\n) "
+                                if key != partition_col]) + "\n)"
     if partition_col:
-        partition_string = "PARTITIONED BY (%s STRING) " % partition_col
+        partition_string = "\nPARTITIONED BY (%s STRING)" % partition_col
     else:
         partition_string = ""
 
-    format_string = "\n %s" % storage.get(format_output, "")
+    format_string = "\n%s" % storage.get(format_output, "")
     if output_path:
-        location = "\n LOCATION '%s'" % output_path
+        location = "\nLOCATION '%s'" % output_path
     else:
         location = ""
     return init_string + fields_string + partition_string + format_string + location
