@@ -44,7 +44,8 @@ def sanitize(key):
         return key
 
 
-def create_schema(df, database, table, partition_col='dt', format_output='parquet', output_path=None):
+def create_schema(df, database, table, partition_col='dt',
+                  format_output='parquet', output_path=None, external=False, **kwargs):
     """
     Create the schema (as a SQL string) for the dataframe in question
 
@@ -61,7 +62,11 @@ def create_schema(df, database, table, partition_col='dt', format_output='parque
     if format_output and format_output not in storage:
         raise KeyError("Unrecognized format_output %s. Available values are %s" % (format_output,
                                                                                    list(storage.keys())))
-    init_string = "CREATE TABLE IF NOT EXISTS %s.%s " % (database, table)
+    external = "EXTERNAL" if external else ""
+    init_string = ("CREATE {external} TABLE "
+                  "IF NOT EXISTS {database}.{table} ".format(external=external,
+                                                             database=database,
+                                                             table=table))
     fields_string = "(\n" + ",\n".join([sanitize(key) + " " + value
                                 for key, value in df.dtypes
                                 if key != partition_col]) + "\n) "
@@ -255,7 +260,8 @@ def main(input, format_output, database, table_name, output_path=None, mode_outp
     if to_unnest:
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
-    schema = create_schema(df, database, sanitized_table, partition_col, format_output, output_path)
+    schema = create_schema(df, database, sanitized_table, partition_col,
+                           format_output, output_path, **kwargs)
     spark.sql(schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     create_partitions(spark, partitioned_df, database, sanitized_table, partition_col)
