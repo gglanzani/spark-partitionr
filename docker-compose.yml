@@ -1,7 +1,7 @@
 version: '3'
 services:
   test:
-    build: .
+    build: spark_partitionr
     volumes:
      - .:/code
     environment:
