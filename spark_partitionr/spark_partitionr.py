@@ -26,7 +26,7 @@ def add_partition_column(df, partition_col='dt', partition_with=None):
 
     """
     if partition_with is None:
-        if partition_col not in df.columns:
+        if partition_col and partition_col not in df.columns:
             raise ValueError(("The partition_function can't be None "
                               "if partition_col is not part of the dataframe"))
         else:
