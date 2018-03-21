@@ -1,0 +1,9 @@
+version: '3'
+services:
+  test:
+    build: .
+    volumes:
+     - .:/code
+    environment:
+    - PYTHONPATH=/usr/spark/python:$PYTHONPATH
+    command: "pytest"
