@@ -134,5 +134,39 @@ def test_compare_fields_remove_from_old(sample_df):
     assert schema.are_schemas_compatible(new_schema, old_schema, remove_from_old='dt')
 
 
+def test_read_different_order(spark):
+    """
+    Here we add a new column before the old one, to check for
 
+    """
+    df1 = (spark
+           .range(100)
+           .withColumn('p', sf.lit(1))
+           )
+
+    df2 = (spark
+           .range(100)
+           .withColumn('new_id', sf.col('id'))
+           .drop('id')
+           .withColumn('id', sf.col('new_id'))
+           .withColumn('p', sf.lit(2))
+           )
+    path = '/tmp/test'
+    spark.sql('create database test')
+
+    df1.write.partitionBy('p').saveAsTable('test.df', format='parquet', path=path, mode='overwrite')
+    _schema = schema.create_schema(df2, 'test', 'df', external=True, output_path=path,
+                               partition_col='p')
+    spark.sql('drop table test.df')
+    spark.sql(_schema)
+    df2.write.format('parquet').mode('append').partitionBy('p').save(path)
+    spark.sql('msck repair table test.df')
+    assert set(spark.sql("SELECT DISTINCT p FROM test.df")
+               .rdd
+               .map(lambda row: int(row['p'])).collect()) == {1, 2}
+    # if the order doesn't matter, then new_id for p = 1 should always be NULL, so the count should
+    # be zero. If the order count (i.e. the new_id column will be filled with data from id in p = 1)
+    # then the count won't be 0
+    assert spark.sql("""select distinct new_id from test.df
+                     where p = 1 and new_id is not null""").count() == 0
 
