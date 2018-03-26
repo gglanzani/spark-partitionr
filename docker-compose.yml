@@ -1,9 +1,7 @@
 version: '3'
 services:
   test:
-    build: spark_partitionr
+    image: spark_partitionr:latest
     volumes:
      - .:/code
-    environment:
-    - PYTHONPATH=/usr/spark/python:$PYTHONPATH
-    command: "pytest"
+    entrypoint: "pytest"

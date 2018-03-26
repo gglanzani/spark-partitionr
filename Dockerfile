@@ -1,4 +1,4 @@
-FROM fokkodriesprong/docker-pyspark:latest
+FROM godatadriven/pyspark:latest
 
 ADD . /code
 WORKDIR /code

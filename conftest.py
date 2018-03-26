@@ -6,7 +6,7 @@ from spark_partitionr import create_spark_session
 
 
 @pytest.fixture(scope="session", autouse=True)
-def spark_session():
+def spark():
     """
     Fixture to create a SparkSession.
 
@@ -23,6 +23,6 @@ def spark_session():
 
 
 @pytest.fixture(scope="session", autouse=True)
-def sample_df(spark_session):
-    df = spark_session.read.json("tests/formatted-issue.json", multiLine=True)
+def sample_df(spark):
+    df = spark.read.json("tests/formatted-issue.json", multiLine=True)
     return df

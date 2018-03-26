@@ -3,6 +3,11 @@ Main module to load the data
 """
 # pylint: disable=C0330
 import re
+import json
+
+from spark_partitionr import schema
+
+
 INVALID_HIVE_CHARACTERS = re.compile("[^A-Za-z0-9_]")
 
 storage = {'parquet': 'STORED AS PARQUET',
@@ -32,55 +37,6 @@ def add_partition_column(df, partition_col='dt', partition_with=None):
         else:
             return df
     return df.withColumn(partition_col, partition_with)
-
-
-def sanitize(key):
-    """
-    Sanitize column names (they cannot begin with '_') by surrounding them with backticks (`)
-    """
-    if key[0] == "_":
-        return "`%s`" % key
-    else:
-        return key
-
-
-def create_schema(df, database, table, partition_col='dt',
-                  format_output='parquet', output_path=None, external=False, **kwargs):
-    """
-    Create the schema (as a SQL string) for the dataframe in question
-
-    The `format_output` is needed as this has to be specified in the create statement
-
-    :param df: The dataframe that has been written partitioned on "disk"
-    :type df: A Spark dataframe
-    :param database str: To which database does the table belong
-    :param table str: On which tables has this been written to
-    :param partition_col str: On which column should it be partitioned
-    :param format_output str: What format should the table use.
-    :param output_path: Where the table should be written (if not in the metastore managed folder).
-    """
-    if format_output and format_output not in storage:
-        raise KeyError("Unrecognized format_output %s. Available values are %s" % (format_output,
-                                                                                   list(storage.keys())))
-    external = "EXTERNAL" if external else ""
-    init_string = ("CREATE {external} TABLE "
-                  "IF NOT EXISTS {database}.{table} ".format(external=external,
-                                                             database=database,
-                                                             table=table))
-    fields_string = "(\n" + ",\n".join([sanitize(key) + " " + value
-                                for key, value in df.dtypes
-                                if key != partition_col]) + "\n)"
-    if partition_col:
-        partition_string = "\nPARTITIONED BY (%s STRING)" % partition_col
-    else:
-        partition_string = ""
-
-    format_string = "\n%s" % storage.get(format_output, "")
-    if output_path:
-        location = "\nLOCATION '%s'" % output_path
-    else:
-        location = ""
-    return init_string + fields_string + partition_string + format_string + location
 
 
 def create_partitions(spark, database, table):
@@ -190,23 +146,37 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
            .partitionBy(partition_col)
            .save(output_path))
 
+
+def is_table_external(spark, database='default', table=None):
+    count = (spark.sql('describe formatted {}.{}'.format(database=database,
+                                                         table=table))
+             .where("col_name='Type'")
+             .where("data_type = 'EXTERNAL'")
+             .count())
+    return bool(count)
+
+
 def sanitize_table_name(table_name):
     return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
 
 
-def are_schemas_equal(df, *, spark, database, table, partition_col):
-    old_df = spark.read.table("{}.{}".format(database, table))
+def are_schemas_equal(df, old_df, *, partition_col=None):
+    if not partition_col:
+        partition_col_set = set()
+    else:
+        partition_col_set = {partition_col}
     old_dtypes = dict(old_df.dtypes)
     new_dtypes = dict(df.dtypes)
-    new_keys = new_dtypes.keys() - old_dtypes.keys() - set(partition_col)
+    new_keys = new_dtypes.keys() - old_dtypes.keys() - partition_col_set
     if new_keys:
         return False
     else:
         return all(value == old_dtypes[key]
-                   for key, value in new_dtypes.items if key != partition_col)
+                   for key, value in new_dtypes.items() if key != partition_col)
 
 
-def main(input, format_output, database, table_name, output_path=None, mode_output='append', partition_col='dt',
+def main(input, format_output, database='default', table_name='', output_path=None,
+         mode_output='append', partition_col='dt',
          partition_with=None, spark=None, **kwargs):
     r"""
     :param input: Either the location location for the data to load, which will be passed to `.load` in Spark.
@@ -268,17 +238,32 @@ def main(input, format_output, database, table_name, output_path=None, mode_outp
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
 
-    recreate_table = are_schemas_equal(df, spark=spark,
-                                       database=database, table=sanitized_table,
-                                       partition_col=partition_col)
-    if recreate_table:
-        spark.sql('DROP TABLE {}.{}'.format(database, sanitized_table))
+    old_df = spark.read.table("{}.{}".format(database, sanitized_table))
+    schema_equal = schema.are_schemas_equal(df, old_df, partition_col=partition_col)
+    table_external = is_table_external(spark, database, sanitized_table)
 
-    schema = create_schema(df, database, sanitized_table, partition_col,
+    if not schema_equal and format_output != 'parquet':
+      raise NotImplementedError("Only `parquet` schema evolution is supported")
+    elif not schema_equal:
+        new_schema = json.loads(df.schema.json())
+        old_schema = json.loads(old_df.schema.json())
+        schema_compatible = schema.are_schemas_compatible(new_schema, old_schema)
+    else:
+        schema_compatible = True
+
+    if not schema_equal and table_external and schema_compatible:
+        spark.sql('DROP TABLE {}.{}'.format(database, sanitized_table))
+    elif not table_external:
+        raise ValueError("The schema has changed, but the table is internal")
+    elif not schema_compatible:
+        raise ValueError("The schema is not compatible")
+
+    df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
                            format_output, output_path, **kwargs)
-    spark.sql(schema)
+    spark.sql(df_schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     create_partitions(spark, database, sanitized_table)
     if not output_path:
         output_path = get_output_path(spark, database, sanitized_table)
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
+
