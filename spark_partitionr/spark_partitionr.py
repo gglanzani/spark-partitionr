@@ -3,7 +3,6 @@ Main module to load the data
 """
 # pylint: disable=C0330
 import re
-import json
 
 from spark_partitionr import schema
 
@@ -245,8 +244,8 @@ def main(input, format_output, database='default', table_name='', output_path=No
     if not schema_equal and format_output != 'parquet':
       raise NotImplementedError("Only `parquet` schema evolution is supported")
     elif not schema_equal:
-        new_schema = json.loads(df.schema.json())
-        old_schema = json.loads(old_df.schema.json())
+        new_schema = df.schema.jsonValue()
+        old_schema = old_df.schema.jsonValue()
         schema_compatible = schema.are_schemas_compatible(new_schema, old_schema)
     else:
         schema_compatible = True
