@@ -219,13 +219,24 @@ def check_external(spark, database, table, schema_equal, schema_compatible):
     table_external = is_table_external(spark, database, table)
     if not schema_equal and table_external and schema_compatible:
         old_table_name = table
-        table = table + random.randint(0, 1000)
+        table = table + str(random.randint(0, 1000))
         return old_table_name, table
     elif not table_external:
         raise ValueError("The schema has changed, but the table is internal")
     elif not schema_compatible:
         raise ValueError("The schema is not compatible")
     return None, table
+
+
+def move_table(spark, *, from_database, from_table, to_database, to_table):
+    spark.sql('DROP TABLE {}.{}'.format(to_database, to_table))
+    spark.sql("""
+            ALTER TABLE  {from_database}.{from_table} RENAME TO {to_database}.{to_table} 
+            """.format(from_database=from_database,
+                       to_database=to_database,
+                       from_table=from_table,
+                       to_table=to_table))
+
 
 def main(input, format_output, database='default', table_name='', output_path=None,
          mode_output='append', partition_col='dt',
@@ -282,9 +293,10 @@ def main(input, format_output, database='default', table_name='', output_path=No
     else:
         df = input
 
-    new = False
+
     try:
         old_df = spark.read.table("{}.{}".format(database, sanitized_table))
+        new = False
     except Exception as e: # spark exception
         new = True
 
@@ -311,9 +323,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
 
 
     if not new and not schema_equal:
-        spark.sql('DROP TABLE {}.{}'.format(database, old_table_name))
-        spark.sql("""
-        ALTER TABLE  {database}.{sanitized_table} RENAME TO {database}.{old_table_name} 
-        """.format(database=database,
-                   sanitized_table=sanitized_table,
-                   old_table_name=old_table_name))
+        move_table(spark, from_database=database, from_table=sanitized_table,
+                   to_database=database, to_table=old_table_name)
+
+
