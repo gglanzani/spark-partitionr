@@ -54,8 +54,8 @@ def create_partitions(spark, database, table):
     :param str table: On which tables has this been written to
     :param str partition_col: On which column should it be partitioned
     """
-    query = """MSCK REPAIR TABLE %(database)s.%(table)s""".format(database=database,
-                                                                  table=table)
+    query = """MSCK REPAIR TABLE {database}.{table}""".format(database=database,
+                                                              table=table)
     spark.sql(query)
 
 
