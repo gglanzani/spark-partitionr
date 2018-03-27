@@ -238,27 +238,35 @@ def main(input, format_output, database='default', table_name='', output_path=No
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
 
-    old_df = spark.read.table("{}.{}".format(database, sanitized_table))
-    schema_equal = schema.are_schemas_equal(df, old_df, partition_col=partition_col)
-    table_external = is_table_external(spark, database, sanitized_table)
+    new = True
+    try:
+        old_df = spark.read.table("{}.{}".format(database, sanitized_table))
+    except Exception as e:
+        if e.__class__.__name__ == 'AnalysisException':  # spark exception
+            new = False
+        else:
+            raise e
 
-    if not schema_equal and format_output != 'parquet':
-      raise NotImplementedError("Only `parquet` schema evolution is supported")
-    elif not schema_equal:
-        new_schema = df.schema.jsonValue()
-        old_schema = old_df.schema.jsonValue()
-        schema_compatible = schema.are_schemas_compatible(new_schema, old_schema)
-    else:
-        schema_compatible = True
+    if not new:
+        schema_equal = schema.are_schemas_equal(df, old_df, partition_col=partition_col)
+        table_external = is_table_external(spark, database, sanitized_table)
 
-    old_table_name = None
-    if not schema_equal and table_external and schema_compatible:
-        old_table_name = sanitized_table
-        sanitized_table = sanitized_table + random.randint(0, 1000)
-    elif not table_external:
-        raise ValueError("The schema has changed, but the table is internal")
-    elif not schema_compatible:
-        raise ValueError("The schema is not compatible")
+        if not schema_equal and format_output != 'parquet':
+          raise NotImplementedError("Only `parquet` schema evolution is supported")
+        elif not schema_equal:
+            new_schema = df.schema.jsonValue()
+            old_schema = old_df.schema.jsonValue()
+            schema_compatible = schema.are_schemas_compatible(new_schema, old_schema)
+        else:
+            schema_compatible = True
+
+        if not schema_equal and table_external and schema_compatible:
+            old_table_name = sanitized_table
+            sanitized_table = sanitized_table + random.randint(0, 1000)
+        elif not table_external:
+            raise ValueError("The schema has changed, but the table is internal")
+        elif not schema_compatible:
+            raise ValueError("The schema is not compatible")
 
     df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
                            format_output, output_path, **kwargs)
@@ -269,7 +277,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
         output_path = get_output_path(spark, database, sanitized_table)
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
 
-    if old_table_name:
+    if not new:
         spark.sql('DROP TABLE {}.{}'.format(database, old_table_name))
         spark.sql("""
         ALTER TABLE  {database}.{sanitized_table} RENAME TO {database}.{old_table_name} 

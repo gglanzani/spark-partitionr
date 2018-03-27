@@ -153,6 +153,10 @@ def compare_complex_fields(new_field, old_field):
         # somehow, for array, the fields are stored in ARRAYTYPE
         new_schema = complex_new_field[ARRAYTYPE]
         old_schema = complex_old_field[ARRAYTYPE]
+        # the next happens for cases such as
+        # {'name': 'promotion', 'nullable': True, 'type': {'containsNull': True, 'elementType': 'string', 'type': 'array'}, 'metadata': {}}
+        if old_schema and type(new_schema) == type(old_schema) == str:
+            return new_schema == old_schema
     else:
         # When the new one is a STRUCT, and the old one an ARRAY, or vice versa
         return False
