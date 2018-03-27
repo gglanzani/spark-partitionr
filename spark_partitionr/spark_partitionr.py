@@ -220,12 +220,12 @@ def check_external(spark, database, table, schema_equal, schema_compatible):
     if not schema_equal and table_external and schema_compatible:
         old_table_name = table
         table = table + random.randint(0, 1000)
+        return old_table_name, table
     elif not table_external:
         raise ValueError("The schema has changed, but the table is internal")
     elif not schema_compatible:
         raise ValueError("The schema is not compatible")
-    return old_table_name, table
-
+    return None, table
 
 def main(input, format_output, database='default', table_name='', output_path=None,
          mode_output='append', partition_col='dt',
@@ -288,7 +288,6 @@ def main(input, format_output, database='default', table_name='', output_path=No
     except Exception as e: # spark exception
         new = True
 
-    old_table_name = None
 
     if not new:
         schema_equal, schema_compatible = check_compatibility(df, old_df,
@@ -309,7 +308,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
         output_path = get_output_path(spark, database, sanitized_table)
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
 
-    if not new:
+    if not new and not schema_equal:
         spark.sql('DROP TABLE {}.{}'.format(database, old_table_name))
         spark.sql("""
         ALTER TABLE  {database}.{sanitized_table} RENAME TO {database}.{old_table_name} 
