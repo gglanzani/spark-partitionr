@@ -175,6 +175,58 @@ def are_schemas_equal(df, old_df, *, partition_col=None):
                    for key, value in new_dtypes.items() if key != partition_col)
 
 
+def check_compatibility(df, old_df, format_output, partition_col):
+    """
+    Check if `df` and `old_df` have compatible schemas.
+
+    Only the check for `parquet` has been implemeted, due to field ordering
+
+    :param df: A Spark dataframe, the most recent one
+    :param old_df: A Spark dataframe, the oldest
+    :param str format_output: Which output format the data will be written to
+    :param str partition_col: The way old data is partitioned
+    :return: Whether the schemas are equal and compatible
+    :rtype: tuple[bool, bool]
+    """
+    schema_equal = schema.are_schemas_equal(df, old_df, partition_col=partition_col)
+
+    if not schema_equal and format_output != 'parquet':
+        raise NotImplementedError("Only `parquet` schema evolution is supported")
+    elif not schema_equal:
+        new_schema = df.schema.jsonValue()
+        old_schema = old_df.schema.jsonValue()
+        schema_compatible = schema.are_schemas_compatible(new_schema, old_schema)
+    else:
+        schema_compatible = True
+    return schema_equal, schema_compatible
+
+
+def check_external(spark, database, table, schema_equal, schema_compatible):
+    """
+    If the table is external, return the table name with and without a random int appended
+
+    New data can be saved in the version with the random int appendend. Once that is done, the old
+    table can be dropped, and the new table moved
+
+    :param spark: Spark context
+    :param str database: Hive database
+    :param str table: Hive table
+    :param bool schema_equal: Whether the new schema is equal to the old one
+    :param bool schema_compatible: Whether the new schema is compatible with the old one
+    :return: `table` and `tableN`, where `N` is a `randint`
+    :rtype: tuple[str, str]
+    """
+    table_external = is_table_external(spark, database, table)
+    if not schema_equal and table_external and schema_compatible:
+        old_table_name = table
+        table = table + random.randint(0, 1000)
+    elif not table_external:
+        raise ValueError("The schema has changed, but the table is internal")
+    elif not schema_compatible:
+        raise ValueError("The schema is not compatible")
+    return old_table_name, table
+
+
 def main(input, format_output, database='default', table_name='', output_path=None,
          mode_output='append', partition_col='dt',
          partition_with=None, spark=None, **kwargs):
@@ -205,9 +257,6 @@ def main(input, format_output, database='default', table_name='', output_path=No
       * *repartition* (``bool``) --
         Whether to partition the data by partition column beforer writing. This reduces the number
         of small files written by Spark
-      * *to_unnest* (``list``) --
-        Which Struct's, if any, should be unnested as columns. This is helpful for the cases when
-        a field is too deeply nested that it exceeds the maximum length supported by Hive
       * *key* (``str``)
         In principle all `key` if accepted by `spark.read.options`, by `findspark.init()`, or by
         `SparkSession.builder.config`
@@ -233,37 +282,23 @@ def main(input, format_output, database='default', table_name='', output_path=No
     else:
         df = input
 
-    to_unnest = kwargs.get('to_unnest')
-    if to_unnest:
-        for el in to_unnest:
-            df = df.select('%s.*' % el, *df.columns).drop(el)
-
     new = False
     try:
         old_df = spark.read.table("{}.{}".format(database, sanitized_table))
     except Exception as e: # spark exception
         new = True
 
+    old_table_name = None
+
     if not new:
-        schema_equal = schema.are_schemas_equal(df, old_df, partition_col=partition_col)
-        table_external = is_table_external(spark, database, sanitized_table)
+        schema_equal, schema_compatible = check_compatibility(df, old_df,
+                                                              format_output,
+                                                              partition_col)
 
-        if not schema_equal and format_output != 'parquet':
-          raise NotImplementedError("Only `parquet` schema evolution is supported")
-        elif not schema_equal:
-            new_schema = df.schema.jsonValue()
-            old_schema = old_df.schema.jsonValue()
-            schema_compatible = schema.are_schemas_compatible(new_schema, old_schema)
-        else:
-            schema_compatible = True
+        old_table_name, sanitized_table = check_external(spark, database, sanitized_table,
+                                                         schema_equal,
+                                                         schema_compatible)
 
-        if not schema_equal and table_external and schema_compatible:
-            old_table_name = sanitized_table
-            sanitized_table = sanitized_table + random.randint(0, 1000)
-        elif not table_external:
-            raise ValueError("The schema has changed, but the table is internal")
-        elif not schema_compatible:
-            raise ValueError("The schema is not compatible")
 
     df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
                            format_output, output_path, **kwargs)
