@@ -3,6 +3,7 @@ Main module to load the data
 """
 # pylint: disable=C0330
 import re
+import random
 
 from spark_partitionr import schema
 
@@ -250,8 +251,10 @@ def main(input, format_output, database='default', table_name='', output_path=No
     else:
         schema_compatible = True
 
+    old_table_name = None
     if not schema_equal and table_external and schema_compatible:
-        spark.sql('DROP TABLE {}.{}'.format(database, sanitized_table))
+        old_table_name = sanitized_table
+        sanitized_table = sanitized_table + random.randint(0, 1000)
     elif not table_external:
         raise ValueError("The schema has changed, but the table is internal")
     elif not schema_compatible:
@@ -266,3 +269,10 @@ def main(input, format_output, database='default', table_name='', output_path=No
         output_path = get_output_path(spark, database, sanitized_table)
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
 
+    if old_table_name:
+        spark.sql('DROP TABLE {}.{}'.format(database, old_table_name))
+        spark.sql("""
+        ALTER TABLE  {database}.{sanitized_table} RENAME TO {database}.{old_table_name} 
+        """.format(database=database,
+                   sanitized_table=sanitized_table,
+                   old_table_name=old_table_name))
