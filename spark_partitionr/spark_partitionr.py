@@ -39,7 +39,7 @@ def add_partition_column(df, partition_col='dt', partition_with=None):
     return df.withColumn(partition_col, partition_with)
 
 
-def create_partitions(spark, database, table):
+def repair_partitions(spark, database, table):
     """
     Create the partitions on the metastore (not on "disk").
 
@@ -264,7 +264,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
                            format_output, output_path, **kwargs)
     spark.sql(df_schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
-    create_partitions(spark, database, sanitized_table)
+    repair_partitions(spark, database, sanitized_table)
     if not output_path:
         output_path = get_output_path(spark, database, sanitized_table)
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
