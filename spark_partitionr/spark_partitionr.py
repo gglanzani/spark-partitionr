@@ -238,14 +238,11 @@ def main(input, format_output, database='default', table_name='', output_path=No
         for el in to_unnest:
             df = df.select('%s.*' % el, *df.columns).drop(el)
 
-    new = True
+    new = False
     try:
         old_df = spark.read.table("{}.{}".format(database, sanitized_table))
-    except Exception as e:
-        if e.__class__.__name__ == 'AnalysisException':  # spark exception
-            new = False
-        else:
-            raise e
+    except Exception as e: # spark exception
+        new = True
 
     if not new:
         schema_equal = schema.are_schemas_equal(df, old_df, partition_col=partition_col)
