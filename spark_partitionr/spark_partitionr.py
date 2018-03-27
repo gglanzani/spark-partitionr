@@ -148,8 +148,8 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
 
 
 def is_table_external(spark, database='default', table=None):
-    count = (spark.sql('describe formatted {}.{}'.format(database=database,
-                                                         table=table))
+    count = (spark.sql('describe formatted {database}.{table}'.format(database=database,
+                                                                      table=table))
              .where("col_name='Type'")
              .where("data_type = 'EXTERNAL'")
              .count())
