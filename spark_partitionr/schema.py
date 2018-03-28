@@ -25,6 +25,10 @@ STRUCT = 'struct'
 ARRAY = 'array'
 
 
+class SchemaError(Exception):
+    pass
+
+
 def sanitize(key):
     """
     Sanitize column names (they cannot begin with '_') by surrounding them with backticks (`)
@@ -135,7 +139,7 @@ def _compare_fields(new_field, old_field):
                for new_key, new_value in new_field.items() if new_key != METADATA)
 
 
-def compare_complex_fields(new_field, old_field, allow_empty_array=True):
+def compare_complex_fields(new_field, old_field):
     """
     Compare if two complex fields are compatible
 
@@ -153,25 +157,20 @@ def compare_complex_fields(new_field, old_field, allow_empty_array=True):
         # somehow, for array, the fields are stored in ARRAYTYPE
         new_schema = complex_new_field[ARRAYTYPE]
         old_schema = complex_old_field[ARRAYTYPE]
-        # the next happens for cases such as
-        # {'name': 'promotion', 'nullable': True, 'type': {'containsNull': True, 'elementType': 'string', 'type': 'array'}, 'metadata': {}}
-        # where one type is an array but might be empty in the current ru
-        if (allow_empty_array and ((old_schema and type(old_schema) == str) or
-                (type(new_schema) == str))):
-            return True
-        # if we don't allows empty arrays, but they're both empty, the schemas can still be equal
-        elif (not allow_empty_array and old_schema and type(new_schema) == type(old_schema) == str):
-            return new_schema == old_schema
-        # if we don't allows empty arrays, and they're not both empty, return False
-        elif (not allow_empty_array and old_schema and type(new_schema) != type(old_schema)):
-            return False
+        # the next happens for json sometimes:
+        # old data: [(a: 1), (a: 5)] <-- array of structs
+        # new data: [] <-- array of string, but it's empty! thank you json
+        if ((old_schema and type(old_schema) != str) and type(new_schema) == str):
+            logger.warning("""New schema is backward incompatible. Old schema is {},
+                           new is {}""".format(old_schema, new_schema))
+            raise SchemaError("Found array of strings instead of array of structs")
     else:
         # When the new one is a STRUCT, and the old one an ARRAY, or vice versa
         return False
     return are_schemas_compatible(new_schema, old_schema)
 
 
-def compare_fields(new_field, old_field, allow_empty_array=True):
+def compare_fields(new_field, old_field):
     """
     Compare two schema fields
 
@@ -180,7 +179,7 @@ def compare_fields(new_field, old_field, allow_empty_array=True):
     :return: A boolean indicating if they are compatible
     """
     if are_fields_complex(new_field, old_field):
-        return compare_complex_fields(new_field, old_field, allow_empty_array)
+        return compare_complex_fields(new_field, old_field)
     elif old_field and new_field[TYPE] != old_field[TYPE]:
         # this could be more accurante, as some numeric type are compatible (int -> float)
         return False
@@ -191,7 +190,7 @@ def compare_fields(new_field, old_field, allow_empty_array=True):
         return new_field.get(NULLABLE)
 
 
-def are_schemas_compatible(new_schema, old_schema, remove_from_old=None, allow_empty_array=True):
+def are_schemas_compatible(new_schema, old_schema, remove_from_old=None):
     """
     Check for schema compatibility
 
@@ -213,5 +212,5 @@ def are_schemas_compatible(new_schema, old_schema, remove_from_old=None, allow_e
             'The `remove_from_old`={} key was not found in `old_schema`'.format(remove_from_old))
         logger.warning("Available keys are {}".format(old_schema.keys()))
 
-    return all(compare_fields(new_value, old_schema.get(new_key), allow_empty_array)
+    return all(compare_fields(new_value, old_schema.get(new_key))
                for new_key, new_value in new_schema.items())

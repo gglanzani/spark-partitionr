@@ -102,7 +102,6 @@ def create_spark_session(database='not provided', table='not provided', **kwargs
 
     * *key* (``str``) --
       All arguments valid for SparkSession.builder, such as `master=local`
-
     """
     try:
         from pyspark.sql import SparkSession
@@ -207,6 +206,7 @@ def check_external(spark, database, table, schema_equal, schema_compatible):
     :param str table: Hive table
     :param bool schema_equal: Whether the new schema is equal to the old one
     :param bool schema_compatible: Whether the new schema is compatible with the old one
+    :param schema_reverse_compatible: Whether the old schema is "backward" compatible with the new
     :return: `table` and `tableN`, where `N` is a `randint`
     :rtype: tuple[str, str]
     """
@@ -306,13 +306,16 @@ def main(input, format_output, database='default', table_name='', output_path=No
 
 
     if not new:
-        schema_equal, schema_compatible = check_compatibility(df, old_df,
-                                                              format_output,
-                                                              partition_col)
+        try:
+            schema_equal, schema_compatible = check_compatibility(df, old_df,
+                                                                  format_output,
+                                                                  partition_col)
 
-        old_table_name, sanitized_table = check_external(spark, database, sanitized_table,
-                                                         schema_equal,
-                                                         schema_compatible)
+            old_table_name, sanitized_table = check_external(spark, database, sanitized_table,
+                                                             schema_equal,
+                                                             schema_compatible)
+        except schema.SchemaError:
+            schema_compatible = False
 
 
     df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
@@ -321,13 +324,11 @@ def main(input, format_output, database='default', table_name='', output_path=No
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     if not output_path:
         output_path = get_output_path(spark, database, sanitized_table)
-    write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
 
+    write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
     repair_partitions(spark, database, sanitized_table)
 
 
-    if not new and not schema_equal:
+    if not new and schema_compatible:
         move_table(spark, from_database=database, from_table=sanitized_table,
                    to_database=database, to_table=old_table_name)
-
-
