@@ -148,6 +148,15 @@ def write_data(df, format_output, mode_output, partition_col, output_path, **kwa
 
 
 def is_table_external(spark, database='default', table=None):
+    """
+    Check whether a Hive table is external or not
+
+    :param spark: Spark context
+    :param str database: Database
+    :param table: Table
+    :return: True when external
+    :rtype: bool
+    """
     count = (spark.sql('describe formatted {database}.{table}'.format(database=database,
                                                                       table=table))
              .where("col_name='Type'")
@@ -158,21 +167,6 @@ def is_table_external(spark, database='default', table=None):
 
 def sanitize_table_name(table_name):
     return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
-
-
-def are_schemas_equal(df, old_df, *, partition_col=None):
-    if not partition_col:
-        partition_col_set = set()
-    else:
-        partition_col_set = {partition_col}
-    old_dtypes = dict(old_df.dtypes)
-    new_dtypes = dict(df.dtypes)
-    new_keys = new_dtypes.keys() - old_dtypes.keys() - partition_col_set
-    if new_keys:
-        return False
-    else:
-        return all(value == old_dtypes[key]
-                   for key, value in new_dtypes.items() if key != partition_col)
 
 
 def check_compatibility(df, old_df, format_output, partition_col):
@@ -229,6 +223,16 @@ def check_external(spark, database, table, schema_equal, schema_compatible):
 
 
 def move_table(spark, *, from_database, from_table, to_database, to_table):
+    """
+    Rename Hive table
+
+    :param spark: Spark context
+    :param str from_database: Source db
+    :param str from_table: Source table
+    :param str to_database: Target db
+    :param str to_table: Target table
+    :return: None
+    """
     spark.sql('DROP TABLE {}.{}'.format(to_database, to_table))
     spark.sql("""
             ALTER TABLE  {from_database}.{from_table} RENAME TO {to_database}.{to_table} 

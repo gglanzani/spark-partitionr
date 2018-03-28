@@ -135,7 +135,7 @@ def _compare_fields(new_field, old_field):
                for new_key, new_value in new_field.items() if new_key != METADATA)
 
 
-def compare_complex_fields(new_field, old_field):
+def compare_complex_fields(new_field, old_field, allow_empty_array=True):
     """
     Compare if two complex fields are compatible
 
@@ -155,15 +155,23 @@ def compare_complex_fields(new_field, old_field):
         old_schema = complex_old_field[ARRAYTYPE]
         # the next happens for cases such as
         # {'name': 'promotion', 'nullable': True, 'type': {'containsNull': True, 'elementType': 'string', 'type': 'array'}, 'metadata': {}}
-        if old_schema and type(new_schema) == type(old_schema) == str:
+        # where one type is an array but might be empty in the current ru
+        if (allow_empty_array and (old_schema and type(old_schema) == str) or
+                (type(new_schema) == str)):
+            return True
+        # if we don't allows empty arrays, but they're both empty, the schemas can still be equal
+        elif (not allow_empty_array and old_schema and type(new_schema) == type(old_schema) == str):
             return new_schema == old_schema
+        # if we don't allows empty arrays, and they're not both empty, return False
+        elif (not allow_empty_array and old_schema and type(new_schema) != type(old_schema)):
+            return False
     else:
         # When the new one is a STRUCT, and the old one an ARRAY, or vice versa
         return False
     return are_schemas_compatible(new_schema, old_schema)
 
 
-def compare_fields(new_field, old_field):
+def compare_fields(new_field, old_field, allow_empty_array=True):
     """
     Compare two schema fields
 
@@ -172,7 +180,7 @@ def compare_fields(new_field, old_field):
     :return: A boolean indicating if they are compatible
     """
     if are_fields_complex(new_field, old_field):
-        return compare_complex_fields(new_field, old_field)
+        return compare_complex_fields(new_field, old_field, allow_empty_array)
     elif old_field and new_field[TYPE] != old_field[TYPE]:
         # this could be more accurante, as some numeric type are compatible (int -> float)
         return False
@@ -183,7 +191,7 @@ def compare_fields(new_field, old_field):
         return new_field.get(NULLABLE)
 
 
-def are_schemas_compatible(new_schema, old_schema, remove_from_old=None):
+def are_schemas_compatible(new_schema, old_schema, remove_from_old=None, allow_empty_array=True):
     """
     Check for schema compatibility
 
@@ -205,5 +213,5 @@ def are_schemas_compatible(new_schema, old_schema, remove_from_old=None):
             'The `remove_from_old`={} key was not found in `old_schema`'.format(remove_from_old))
         logger.warning("Available keys are {}".format(old_schema.keys()))
 
-    return all(compare_fields(new_value, old_schema.get(new_key))
+    return all(compare_fields(new_value, old_schema.get(new_key), allow_empty_array)
                for new_key, new_value in new_schema.items())

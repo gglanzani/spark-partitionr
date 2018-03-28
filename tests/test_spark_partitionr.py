@@ -37,3 +37,13 @@ def test_add_non_existing_partition(sample_df):
     with pytest.raises(ValueError):
         spr.add_partition_column(sample_df, partition_col=partition_col)
 
+
+def test_external(spark, sample_df):
+    database = 'test'
+    table = 'is_external'
+    spark.sql("CREATE DATABASE IF NOT EXISTS " + database)
+    schema = spr.schema.create_schema(sample_df, database, table,
+                                      output_path='/tmp/is_external',
+                                      external=True)
+    spark.sql(schema)
+    assert spr.is_table_external(spark, database, table)
