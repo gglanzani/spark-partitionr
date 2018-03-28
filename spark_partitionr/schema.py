@@ -156,8 +156,8 @@ def compare_complex_fields(new_field, old_field, allow_empty_array=True):
         # the next happens for cases such as
         # {'name': 'promotion', 'nullable': True, 'type': {'containsNull': True, 'elementType': 'string', 'type': 'array'}, 'metadata': {}}
         # where one type is an array but might be empty in the current ru
-        if (allow_empty_array and (old_schema and type(old_schema) == str) or
-                (type(new_schema) == str)):
+        if (allow_empty_array and ((old_schema and type(old_schema) == str) or
+                (type(new_schema) == str))):
             return True
         # if we don't allows empty arrays, but they're both empty, the schemas can still be equal
         elif (not allow_empty_array and old_schema and type(new_schema) == type(old_schema) == str):
