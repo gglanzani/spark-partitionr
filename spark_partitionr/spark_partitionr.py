@@ -327,10 +327,9 @@ def main(input, format_output, database='default', table_name='', output_path=No
             else:
                 raise schema.SchemaError('Schemas are not compatible in both direction')
 
-    if not new and schema_compatible:
-        df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
-                               format_output, output_path, **kwargs)
-        spark.sql(df_schema)
+    df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
+                           format_output, output_path, **kwargs)
+    spark.sql(df_schema)
 
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     if not output_path:
