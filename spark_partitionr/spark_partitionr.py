@@ -170,7 +170,7 @@ def sanitize_table_name(table_name):
     return re.sub(INVALID_HIVE_CHARACTERS, "_", table_name)
 
 
-def check_compatibility(df, old_df, format_output, partition_col):
+def check_compatibility(df, old_df, format_output, partition_col=None):
     """
     Check if `df` and `old_df` have compatible schemas.
 
@@ -190,7 +190,8 @@ def check_compatibility(df, old_df, format_output, partition_col):
     elif not schema_equal:
         new_schema = df.schema.jsonValue()
         old_schema = old_df.schema.jsonValue()
-        schema_compatible = schema.are_schemas_compatible(new_schema, old_schema)
+        schema_compatible = schema.are_schemas_compatible(new_schema, old_schema,
+                                                          remove_from_old=partition_col)
     else:
         schema_compatible = True
     return schema_equal, schema_compatible
