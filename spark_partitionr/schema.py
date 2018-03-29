@@ -166,6 +166,8 @@ def compare_complex_fields(new_field, old_field):
             raise SchemaError("Found array of strings instead of array of structs")
         elif (old_schema and type(old_schema) == type(new_schema) == str):
             return old_schema == new_schema
+        elif (old_schema and type(old_schema) == str and type(new_schema) != str):
+            return True  # this should not be True, but the case of data in the above comment, it is
     else:
         # When the new one is a STRUCT, and the old one an ARRAY, or vice versa
         return False
