@@ -4,6 +4,8 @@ Main module to load the data
 # pylint: disable=C0330
 import re
 import random
+import uuid
+import os
 
 from spark_partitionr import schema
 
@@ -314,13 +316,21 @@ def main(input, format_output, database='default', table_name='', output_path=No
             old_table_name, sanitized_table = check_external(spark, database, sanitized_table,
                                                              schema_equal,
                                                              schema_compatible)
-        except schema.SchemaError:
+        except schema.SchemaError as e:
+            # we set this as no table movement should take place
+
             schema_compatible = False
+            _, schema_backward_compatible = check_compatibility(old_df, df, format_output)
+            if schema_backward_compatible:
+                df = try_impose_schema(spark, df, old_df.schema, **kwargs)
+            else:
+                raise schema.SchemaError('Schemas are not compatible in both direction')
 
+    if not new and schema_compatible:
+        df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
+                               format_output, output_path, **kwargs)
+        spark.sql(df_schema)
 
-    df_schema = schema.create_schema(df, database, sanitized_table, partition_col,
-                           format_output, output_path, **kwargs)
-    spark.sql(df_schema)
     partitioned_df = add_partition_column(df, partition_col, partition_with)
     if not output_path:
         output_path = get_output_path(spark, database, sanitized_table)
@@ -328,7 +338,56 @@ def main(input, format_output, database='default', table_name='', output_path=No
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
     repair_partitions(spark, database, sanitized_table)
 
-
     if not new and schema_compatible:
         move_table(spark, from_database=database, from_table=sanitized_table,
                    to_database=database, to_table=old_table_name)
+
+
+def try_impose_schema(spark, input, schema, **kwargs):
+    """
+    This will impose the schema from old_df on a dataframe
+
+    :param spark: SparkContext
+    :param str input: Location of the data
+    :param old_df:
+    :param kwargs:
+    :return:
+    """
+    if isinstance(input, str):
+        df = load_data(spark, input, schema=schema, **kwargs)
+    else:
+        raise ValueError("Can only impose schema if `input` is not a DataFrame")
+    return df
+
+
+def try_healing(spark, df, old_df, partition_col):
+    alias_partition_col = 'partition_col_df'
+    partition_values_df = df.distinct(partition_col).alias(alias_partition_col)
+    partition_values_df.cache()
+    partition_values_df.count()
+    random_string = uuid.uuid4().hex
+    path = os.path.join('/tmp', random_string)
+    (old_df
+     .sample(0.01)
+     .join(partition_values_df, on=partition_values_df[alias_partition_col] ==
+                                   old_df[partition_col], how='left')
+     .filter(alias_partition_col + ' IS NULL')
+     .drop(alias_partition_col)
+     .write
+     .partitionBy(partition_col)
+     .json(path, mode='overwrite')
+     )
+
+    df.write.partitionBy(partition_col).json(path, mode='append')
+
+    new_df = (spark
+              .read
+              .option('mergeSchema', 'true')
+              .json(path))
+
+    return (new_df
+            .join(partition_values_df, on=partition_values_df[alias_partition_col] ==
+                                          new_df[partition_col], how='inner')
+            .drop(alias_partition_col))
+
+

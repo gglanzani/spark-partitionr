@@ -161,9 +161,11 @@ def compare_complex_fields(new_field, old_field):
         # old data: [(a: 1), (a: 5)] <-- array of structs
         # new data: [] <-- array of string, but it's empty! thank you json
         if ((old_schema and type(old_schema) != str) and type(new_schema) == str):
-            logger.warning("""New schema is backward incompatible. Old schema is {},
-                           new is {}""".format(old_schema, new_schema))
+            logger.warning("New schema is backward incompatible. "
+                           "Old schema is {}, new is {}".format(old_schema, new_schema))
             raise SchemaError("Found array of strings instead of array of structs")
+        elif (old_schema and type(old_schema) == type(new_schema) == str):
+            return old_schema == new_schema
     else:
         # When the new one is a STRUCT, and the old one an ARRAY, or vice versa
         return False
