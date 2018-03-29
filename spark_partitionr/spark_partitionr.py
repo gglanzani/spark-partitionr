@@ -322,7 +322,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
             schema_compatible = False
             _, schema_backward_compatible = check_compatibility(old_df, df, format_output)
             if schema_backward_compatible:
-                df = try_impose_schema(spark, df, old_df.schema, **kwargs)
+                df = try_impose_schema(spark, input, old_df.schema, **kwargs)
             else:
                 raise schema.SchemaError('Schemas are not compatible in both direction')
 
