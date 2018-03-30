@@ -310,9 +310,10 @@ def main(input, format_output, database='default', table_name='', output_path=No
 
     if not new:
         try:
+            par_col = partition_col if partition_with else None
             schema_equal, schema_compatible = check_compatibility(df, old_df,
                                                                   format_output,
-                                                                  partition_col)
+                                                                  par_col)
 
             old_table_name, sanitized_table = check_external(spark, database, sanitized_table,
                                                              schema_equal,
