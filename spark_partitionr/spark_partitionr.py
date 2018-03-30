@@ -339,7 +339,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
     write_data(partitioned_df, format_output, mode_output, partition_col, output_path, **kwargs)
     repair_partitions(spark, database, sanitized_table)
 
-    if not new and schema_compatible:
+    if not new and old_table_name != sanitized_table:
         move_table(spark, from_database=database, from_table=sanitized_table,
                    to_database=database, to_table=old_table_name)
 
