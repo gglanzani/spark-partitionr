@@ -222,7 +222,7 @@ def check_external(spark, database, table, schema_equal, schema_compatible):
         raise ValueError("The schema has changed, but the table is internal")
     elif not schema_compatible:
         raise ValueError("The schema is not compatible")
-    return None, table
+    return table, table
 
 
 def move_table(spark, *, from_database, from_table, to_database, to_table):
@@ -238,7 +238,7 @@ def move_table(spark, *, from_database, from_table, to_database, to_table):
     """
     spark.sql('DROP TABLE {}.{}'.format(to_database, to_table))
     spark.sql("""
-            ALTER TABLE  {from_database}.{from_table} RENAME TO {to_database}.{to_table} 
+            ALTER TABLE  {from_database}.{from_table} RENAME TO {to_database}.{to_table}
             """.format(from_database=from_database,
                        to_database=to_database,
                        from_table=from_table,
