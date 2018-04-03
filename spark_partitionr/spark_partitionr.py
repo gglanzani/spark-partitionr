@@ -307,7 +307,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
     except Exception as e: # spark exception
         new = True
 
-
+    old_table_name = sanitized_table
     if not new:
         try:
             par_col = partition_col if partition_with else None
