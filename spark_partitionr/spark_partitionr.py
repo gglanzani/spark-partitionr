@@ -273,7 +273,7 @@ def main(input, format_output, database='default', table_name='', output_path=No
       * *master* (``str``) --
         Specify which `master` should be used
       * *repartition* (``bool``) --
-        Whether to partition the data by partition column beforer writing. This reduces the number
+        Whether to partition the data by partition column before writing. This reduces the number
         of small files written by Spark
       * *key* (``str``)
         In principle all `key` if accepted by `spark.read.options`, by `findspark.init()`, or by
@@ -390,5 +390,3 @@ def try_healing(spark, df, old_df, partition_col):
             .join(partition_values_df, on=partition_values_df[alias_partition_col] ==
                                           new_df[partition_col], how='inner')
             .drop(alias_partition_col))
-
-
